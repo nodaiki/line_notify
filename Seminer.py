@@ -24,6 +24,31 @@ def extract_text(html):
     soup = BeautifulSoup(html, 'html.parser')
     return [line.strip() for line in soup.get_text().splitlines() if line.strip()]
 
+import os
+import requests
+
+def send_broadcast(message):
+    headers = {
+        "Authorization": f"Bearer {os.environ['LINE_TOKEN']}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messages": [
+            {
+                "type": "text",
+                "text": message
+            }
+        ]
+    }
+    res = requests.post("https://api.line.me/v2/bot/message/broadcast",
+                        headers=headers, json=payload)
+
+    # レスポンス内容を表示
+    print("✅ LINE APIレスポンス:")
+    print(f"Status Code: {res.status_code}")
+    print(f"Response Body: {res.text}")
+
+
 def main():
     new_html = fetch_html()
     if not os.path.exists(HTML_FILE):
