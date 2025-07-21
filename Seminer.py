@@ -48,6 +48,9 @@ def main():
 
     with open(HTML_FILE, "w", encoding="utf-8") as f:
         f.write(new_html)
+        
+        
+    send_broadcast("✅ テスト通知：GitHub ActionsからのLINE通知テストです！")
 
 if __name__ == "__main__":
     main()
