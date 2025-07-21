@@ -42,6 +42,7 @@ def main():
     if not os.path.exists(HTML_FILE):
         with open(HTML_FILE, "w", encoding="utf-8") as f:
             f.write(new_html)
+            send_broadcast("✅ テスト通知：GitHub ActionsからのLINE通知テストです！")
         print("初回保存のみ")
         return
 
@@ -63,7 +64,7 @@ def main():
         f.write(new_html)
         
         
-    send_broadcast("✅ テスト通知：GitHub ActionsからのLINE通知テストです！")
+    
 
 if __name__ == "__main__":
     main()
