@@ -21,6 +21,6 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run notifier
-        run: python line_notify/Seminer.py
+        run: python Seminer.py
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
