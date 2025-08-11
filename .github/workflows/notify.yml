@@ -1,14 +1,20 @@
 name: Densuke Notifier
 
 on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'prev.html'     # ← これでprev.html更新では起動しない
   schedule:
-    - cron: "*/10 * * * *"  # 毎10分
+    - cron: "*/10 * * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write        # ← これがないとpushできない
 
 jobs:
   notify:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -24,3 +30,12 @@ jobs:
         run: python Seminer.py
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+
+      - name: Commit prev.html snapshot
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prev.html
+          git commit -m "Update snapshot [skip ci]" || echo "no changes"
+          git push
