@@ -1,46 +1,41 @@
-name: Densuke Notifier
+name: Densuke Watcher
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - 'prev.html'          # スナップショット更新だけでは起動しない
-  schedule:
-    - cron: "*/10 * * * *"
-  workflow_dispatch:
-
-permissions:
-  contents: write            # ← これがないと push できない
+    branches: [ main ]   # 必要ならブランチ名を変更
+  workflow_dispatch:      # 手動実行も可能
 
 jobs:
-  notify:
+  run:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
 
-      - name: Run notifier
+      # 何が未追跡なのか見たい場合は有効化
+      # - name: Show git status (debug)
+      #   run: |
+      #     git status
+      #     git diff --name-only || true
+      #     git ls-files --others --exclude-standard || true
+
+      - name: Run watcher
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-        run: python Seminer.py
-
-      - name: Commit snapshot (prev.html)
-        if: always()
+          # prev.html はリポジトリ外に保存（作業ツリーを汚さない）
+          SNAPSHOT_HTML: ${{ runner.temp }}/prev.html
         run: |
-          git pull --rebase
-          git add prev.html
-          if git diff --cached --quiet; then
-            echo "no changes"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Update snapshot [skip ci]"
-            git push
-          fi
+          python Seminer.py
