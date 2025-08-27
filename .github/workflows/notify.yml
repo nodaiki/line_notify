@@ -1,9 +1,12 @@
 name: Densuke Watcher
 
 on:
-  push:
-    branches: [ main ]   # 必要ならブランチ名を変更
-  workflow_dispatch:      # 手動実行も可能
+  push:             # どのブランチのpushでも起動
+    branches:
+      - '**'
+  workflow_dispatch: {}
+  schedule:
+    - cron: '*/15 * * * *'  # 15分毎（UTC基準）
 
 jobs:
   run:
@@ -25,17 +28,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      # 何が未追跡なのか見たい場合は有効化
-      # - name: Show git status (debug)
-      #   run: |
-      #     git status
-      #     git diff --name-only || true
-      #     git ls-files --others --exclude-standard || true
+      - name: Debug triggers (optional)
+        if: ${{ github.event_name != 'schedule' }}   # 任意
+        run: |
+          echo "event: ${{ github.event_name }}"
+          echo "ref:   ${{ github.ref }}"
+          echo "sha:   ${{ github.sha }}"
 
       - name: Run watcher
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-          # prev.html はリポジトリ外に保存（作業ツリーを汚さない）
+          # リポ外に保存（作業ツリーを汚さない）
           SNAPSHOT_HTML: ${{ runner.temp }}/prev.html
         run: |
           python Seminer.py
