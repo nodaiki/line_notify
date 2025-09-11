@@ -1,12 +1,17 @@
+# Seminer.py
 import os, re, requests
 from bs4 import BeautifulSoup
 
-LINE_TOKEN   = os.getenv("LINE_TOKEN")
-DENSUKE_URL  = "https://densuke.biz/list?cd=dxncu2PesTNses2c"
-SNAPSHOT_HTML= os.getenv("SNAPSHOT_HTML") or "prev.html"  # 必要なら環境変数で上書き可
+LINE_TOKEN    = os.getenv("LINE_TOKEN")
+DENSUKE_URL   = "https://densuke.biz/list?cd=dxncu2PesTNses2c"
+SNAPSHOT_HTML = os.getenv("SNAPSHOT_HTML") or "prev.html"  # 環境変数で上書き可
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; DensukeWatcher/1.0; +https://github.com/)",
+}
 
 def fetch_html() -> str:
-    r = requests.get(DENSUKE_URL, timeout=20)
+    r = requests.get(DENSUKE_URL, headers=HEADERS, timeout=20)
     r.raise_for_status()
     return r.text
 
@@ -22,8 +27,8 @@ def rows_from_html(html: str):
     soup = BeautifulSoup(html, "html.parser")
     table = soup.select_one("#listtable")
     if not table:
+        print("[WARN] #listtable が見つかりません。ページ構造が変わった可能性があります。")
         return set(), {}
-
     rows = table.find_all("tr")
     keys, lastmap = set(), {}
     for tr in rows[1:]:  # ヘッダ行スキップ
@@ -40,9 +45,6 @@ def rows_from_html(html: str):
     return keys, lastmap
 
 def chunk_messages(header: str, lines: list[str], limit: int = 4700) -> list[str]:
-    """
-    1通のメッセージで送るのが基本。長すぎる場合のみ安全に分割。
-    """
     current = header
     messages = []
     for line in lines:
@@ -57,24 +59,26 @@ def chunk_messages(header: str, lines: list[str], limit: int = 4700) -> list[str
     return messages
 
 def send_broadcast_texts(texts: list[str]):
-    url = "https://api.line.me/v2/bot/message/broadcast"
+    if not LINE_TOKEN:
+        print("[ERROR] 環境変数 LINE_TOKEN が未設定です（Messaging API のチャネルアクセストークンを設定してください）。")
+        return
+    url = "https://api.line.me/v2/bot/message/broadcast"  # ← Messaging API
     headers = {"Authorization": f"Bearer {LINE_TOKEN}", "Content-Type": "application/json"}
-    # LINEは一度に最大5件のmessagesを許容。超える場合は複数回に分けて送る。
-    batch = []
-    for t in texts:
-        batch.append({"type":"text","text":t})
-        if len(batch) == 5:
-            res = requests.post(url, headers=headers, json={"messages": batch}, timeout=20)
-            print("LINE API:", res.status_code, res.text)
-            batch = []
-    if batch:
+    for i in range(0, len(texts), 5):  # 1回リクエストで最大5件
+        batch = [{"type":"text","text":t} for t in texts[i:i+5]]
         res = requests.post(url, headers=headers, json={"messages": batch}, timeout=20)
         print("LINE API:", res.status_code, res.text)
 
 def main():
-    new_html = fetch_html()
+    try:
+        new_html = fetch_html()
+    except Exception as e:
+        print(f"[ERROR] HTML取得に失敗: {e}")
+        return
+
     new_keys, new_last = rows_from_html(new_html)
 
+    # 初回は保存のみ
     if not os.path.exists(SNAPSHOT_HTML):
         with open(SNAPSHOT_HTML, "w", encoding="utf-8") as f:
             f.write(new_html)
@@ -88,8 +92,8 @@ def main():
     added = sorted(new_keys - old_keys)
     print(f"[INFO] 旧{len(old_keys)} / 新{len(new_keys)} / 追加{len(added)}")
 
-    # 「×」は通知対象から除外
     notify_lines = [k for k in added if new_last.get(k, "") != "×"]
+    print(f"[INFO] 通知対象（×除外）: {len(notify_lines)} 件")
     if notify_lines:
         header = "📅 新規枠が追加されました"
         messages = chunk_messages(header, notify_lines)
@@ -97,7 +101,6 @@ def main():
     else:
         print("[INFO] 通知対象の追加はありませんでした。")
 
-    # 次回比較用に最新HTMLを保存
     with open(SNAPSHOT_HTML, "w", encoding="utf-8") as f:
         f.write(new_html)
 

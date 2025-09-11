@@ -1,16 +1,16 @@
-name: Densuke Watcher
+# .github/workflows/densuke-watcher.yml
+name: Densuke Watcher (scheduled)
 
 on:
-  push:             # どのブランチのpushでも起動
-    branches:
-      - '**'
-  workflow_dispatch: {}
   schedule:
-    - cron: '*/15 * * * *'  # 15分毎（UTC基準）
+    - cron: '*/15 * * * *'   # 15分ごと（UTC）
+  workflow_dispatch: {}
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # prev.html をコミットするために必要
 
     steps:
       - name: Checkout
@@ -28,17 +28,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      - name: Debug triggers (optional)
-        if: ${{ github.event_name != 'schedule' }}   # 任意
+      - name: Clean working tree (reset to origin/main)
         run: |
-          echo "event: ${{ github.event_name }}"
-          echo "ref:   ${{ github.ref }}"
-          echo "sha:   ${{ github.sha }}"
+          git fetch origin
+          git reset --hard origin/main
 
       - name: Run watcher
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-          # リポ外に保存（作業ツリーを汚さない）
-          SNAPSHOT_HTML: ${{ runner.temp }}/prev.html
+          SNAPSHOT_HTML: prev.html
         run: |
           python Seminer.py
+
+      - name: Commit & push snapshot if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add -A
+            git commit -m "Update snapshot [skip ci]"
+            git push origin HEAD:main
+          fi
